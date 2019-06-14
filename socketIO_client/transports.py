@@ -3,6 +3,7 @@ import six
 import ssl
 import threading
 import time
+import sys
 from six.moves.urllib.parse import urlencode as format_query
 from six.moves.urllib.parse import urlparse as parse_url
 from socket import error as SocketError
@@ -154,8 +155,21 @@ class WebsocketTransport(AbstractTransport):
             raise ConnectionError('recv disconnected (%s)' % e)
         if not isinstance(packet_text, six.binary_type):
             packet_text = packet_text.encode('utf-8')
-        engineIO_packet_type, engineIO_packet_data = parse_packet_text(
-            packet_text)
+        # check if packet text is even defined, if not it will raise a NameError
+        try:
+            packet_text
+        except NameError:
+            sys.stderr.write('socketIO_client.transports.recv_packet() - packet_text is not defined')
+            packet_text = None
+        # if packet_text is None, either bacause encode returned NULL, or it was not defined
+        # then send a noop
+        if packet_text is None:
+            sys.stderr.write('socketIO_client.transports.recv_packet() - packet_text is none, will handle a dummy "noop packet')
+            engineIO_packet_type = 6
+            engineIO_packet_data = ''
+        else:
+            engineIO_packet_type, engineIO_packet_data = parse_packet_text(packet_text)
+
         yield engineIO_packet_type, engineIO_packet_data
 
     def send_packet(self, engineIO_packet_type, engineIO_packet_data=''):
